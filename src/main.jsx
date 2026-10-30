@@ -8,6 +8,23 @@ import {
   getDefaultConfig as getRainbowConfig,
   RainbowKitProvider, ConnectButton
 } from '@rainbow-me/rainbowkit';
+import {
+  metaMaskWallet,
+  trustWallet,
+  binanceWallet,
+  rabbyWallet,
+  okxWallet,
+  bitgetWallet,
+  safepalWallet,
+  coinbaseWallet,
+  tokenPocketWallet,
+  oneInchWallet,
+  ledgerWallet,
+  phantomWallet,
+  zerionWallet,
+  walletConnectWallet,
+  injectedWallet
+} from '@rainbow-me/rainbowkit/wallets';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import '@rainbow-me/rainbowkit/styles.css';
 import './style.css';
@@ -16,12 +33,41 @@ const API_BASE = 'https://orqeli-api.mizahhesabimm.workers.dev';
 const X_PROFILE_URL = '';
 const X_CAMPAIGN_URL = '';
 const projectId = import.meta.env.VITE_WALLETCONNECT_PROJECT_ID || 'YOUR_WALLETCONNECT_PROJECT_ID';
+
 const config = getRainbowConfig({
   appName: 'ORQELI',
   projectId,
   chains: [bsc],
-  ssr: false
+  ssr: false,
+  wallets: [
+    {
+      groupName: 'Popular wallets',
+      wallets: [
+        metaMaskWallet,
+        trustWallet,
+        binanceWallet,
+        rabbyWallet,
+        okxWallet,
+        bitgetWallet,
+        safepalWallet,
+        coinbaseWallet
+      ]
+    },
+    {
+      groupName: 'More wallets',
+      wallets: [
+        tokenPocketWallet,
+        oneInchWallet,
+        ledgerWallet,
+        phantomWallet,
+        zerionWallet,
+        walletConnectWallet,
+        injectedWallet
+      ]
+    }
+  ]
 });
+
 const queryClient = new QueryClient();
 
 const tiers = [
@@ -67,7 +113,7 @@ function App() {
 
   async function applyWhitelist() {
     if (!account.address) return setStatus('Önce cüzdanını bağla.');
-    if (account.chainId !== 56) return setStatus('Lütfen Rabby üzerinden BNB Smart Chain ağına geç.');
+    if (account.chainId !== 56) return setStatus('Lütfen BNB Smart Chain ağına geç.');
     if (!xUsername.trim()) return setStatus('X kullanıcı adını gir.');
     if (!tasksConfirmed) return setStatus('Önce X görevlerini tamamladığını onayla.');
     if (!wlStatus.open) return setStatus('Whitelist başvuruları doldu.');
