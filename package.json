@@ -1,0 +1,6 @@
+{
+  "name":"orqeli-site","private":true,"version":"1.0.0","type":"module",
+  "scripts":{"dev":"vite","build":"vite build","preview":"vite preview"},
+  "dependencies":{"@rainbow-me/rainbowkit":"^2.2.8","@tanstack/react-query":"^5.83.0","@vitejs/plugin-react":"^4.7.0","viem":"^2.37.0","wagmi":"^2.16.9","react":"^19.1.1","react-dom":"^19.1.1"},
+  "devDependencies":{"vite":"^6.3.5"}
+}
