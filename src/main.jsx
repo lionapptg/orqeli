@@ -1,14 +1,35 @@
-
 import React, { useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import {
-  WagmiProvider, useAccount, useSignMessage
+  WagmiProvider,
+  useAccount,
+  useSignMessage,
+  createConfig,
+  http
 } from 'wagmi';
 import { bsc } from 'wagmi/chains';
 import {
-  getDefaultConfig as getRainbowConfig,
-  RainbowKitProvider, ConnectButton
+  connectorsForWallets,
+  RainbowKitProvider,
+  ConnectButton
 } from '@rainbow-me/rainbowkit';
+import {
+  metaMaskWallet,
+  trustWallet,
+  binanceWallet,
+  rabbyWallet,
+  okxWallet,
+  bitgetWallet,
+  safepalWallet,
+  coinbaseWallet,
+  tokenPocketWallet,
+  oneInchWallet,
+  ledgerWallet,
+  phantomWallet,
+  zerionWallet,
+  walletConnectWallet,
+  injectedWallet
+} from '@rainbow-me/rainbowkit/wallets';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import '@rainbow-me/rainbowkit/styles.css';
 import './style.css';
@@ -16,13 +37,51 @@ import './style.css';
 const API_BASE = 'https://orqeli-api.mizahhesabimm.workers.dev';
 const X_PROFILE_URL = '';
 const X_CAMPAIGN_URL = '';
-const projectId = import.meta.env.VITE_WALLETCONNECT_PROJECT_ID || 'YOUR_WALLETCONNECT_PROJECT_ID';
 
-const config = getRainbowConfig({
-  appName: 'ORQELI',
-  projectId,
+const projectId =
+  import.meta.env.VITE_WALLETCONNECT_PROJECT_ID ||
+  'YOUR_WALLETCONNECT_PROJECT_ID';
+
+const connectors = connectorsForWallets(
+  [
+    {
+      groupName: 'Popular wallets',
+      wallets: [
+        metaMaskWallet,
+        trustWallet,
+        binanceWallet,
+        rabbyWallet,
+        okxWallet,
+        bitgetWallet,
+        safepalWallet,
+        coinbaseWallet,
+        tokenPocketWallet,
+        oneInchWallet,
+        ledgerWallet,
+        phantomWallet,
+        zerionWallet
+      ]
+    },
+    {
+      groupName: 'Other connection options',
+      wallets: [
+        walletConnectWallet,
+        injectedWallet
+      ]
+    }
+  ],
+  {
+    appName: 'ORQELI',
+    projectId
+  }
+);
+
+const config = createConfig({
   chains: [bsc],
-  ssr: false
+  connectors,
+  transports: {
+    [bsc.id]: http()
+  }
 });
 
 const queryClient = new QueryClient();
@@ -115,8 +174,12 @@ function App() {
         `${API_BASE}/api/whitelist/challenge`,
         {
           method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ wallet: account.address })
+          headers: {
+            'content-type': 'application/json'
+          },
+          body: JSON.stringify({
+            wallet: account.address
+          })
         }
       );
 
@@ -134,7 +197,9 @@ function App() {
         `${API_BASE}/api/whitelist/apply`,
         {
           method: 'POST',
-          headers: { 'content-type': 'application/json' },
+          headers: {
+            'content-type': 'application/json'
+          },
           body: JSON.stringify({
             wallet: account.address,
             xUsername: xUsername.trim().replace(/^@/, ''),
@@ -152,11 +217,12 @@ function App() {
 
       const statusResponse = await fetch(`${API_BASE}/api/status`);
       const updated = await readResponse(statusResponse);
-      setWlStatus(updated);
 
+      setWlStatus(updated);
     } catch (error) {
       setStatus(
-        error?.message || 'Başvuru sırasında beklenmeyen bir hata oluştu.'
+        error?.message ||
+        'Başvuru sırasında beklenmeyen bir hata oluştu.'
       );
     } finally {
       setBusy(false);
@@ -203,9 +269,11 @@ function App() {
             <h1>ORQELI</h1>
             <p className="sub">NFT COLLECTION</p>
             <p className="intro">
-              Five unique souls. Five different paths.<br />
+              Five unique souls. Five different paths.
+              <br />
               One universe. ORQELI.
             </p>
+
             <a className="goldbtn" href="#whitelist">
               JOIN THE WHITELIST <b>↗</b>
             </a>
@@ -217,13 +285,13 @@ function App() {
                 key={n}
                 src={`/artwork/${n}.webp`}
                 alt={`${n} ORQELI character`}
-                loading="lazy"
-                decoding="async"
               />
             ))}
           </div>
 
-          <div className="hero-note">BUILT ON BNB SMART CHAIN</div>
+          <div className="hero-note">
+            BUILT ON BNB SMART CHAIN
+          </div>
         </section>
 
         <section className="ticker">
@@ -240,7 +308,8 @@ function App() {
           <div>
             <p className="eyebrow">THE COLLECTION</p>
             <h2>
-              Small beings.<br />
+              Small beings.
+              <br />
               <em>Infinite character.</em>
             </h2>
           </div>
@@ -252,9 +321,18 @@ function App() {
           </p>
 
           <div className="stats">
-            <div><b>2,000</b><small>MAXIMUM SUPPLY</small></div>
-            <div><b>05</b><small>RARITY LEVELS</small></div>
-            <div><b>BNB</b><small>BLOCKCHAIN</small></div>
+            <div>
+              <b>2,000</b>
+              <small>MAXIMUM SUPPLY</small>
+            </div>
+            <div>
+              <b>05</b>
+              <small>RARITY LEVELS</small>
+            </div>
+            <div>
+              <b>BNB</b>
+              <small>BLOCKCHAIN</small>
+            </div>
           </div>
         </section>
 
@@ -262,8 +340,11 @@ function App() {
           <div className="sectionhead">
             <div>
               <p className="eyebrow">DISCOVER THE TIERS</p>
-              <h2>Five forms. <em>One universe.</em></h2>
+              <h2>
+                Five forms. <em>One universe.</em>
+              </h2>
             </div>
+
             <p>
               Every ORQELI carries a different presence. Which one will find you?
             </p>
@@ -280,8 +361,6 @@ function App() {
                   <img
                     src={`/artwork/${file}.webp`}
                     alt={`${name} ORQELI NFT`}
-                    loading="lazy"
-                    decoding="async"
                   />
                 </div>
 
@@ -303,14 +382,15 @@ function App() {
             <p className="eyebrow">ORQELI WHITELIST · FREE ENTRY</p>
 
             <h2>
-              Your journey<br />
+              Your journey
+              <br />
               <em>starts here.</em>
             </h2>
 
             <p>
               Joining the whitelist is completely free. Connect your wallet,
-              complete the community tasks and submit one application.
-              A whitelist spot gives you access to a future paid mint phase —
+              complete the community tasks and submit one application. A
+              whitelist spot gives you access to a future paid mint phase —
               it does not mean a free NFT.
             </p>
 
@@ -343,7 +423,9 @@ function App() {
                 <b>04</b>
                 <span>
                   <strong>Receive your WL tier</strong>
-                  <small>First 200 valid entries: OG WL. Next 800: Regular WL.</small>
+                  <small>
+                    First 200 valid entries: OG WL. Next 800: Regular WL.
+                  </small>
                 </span>
               </div>
             </div>
@@ -419,7 +501,9 @@ function App() {
                 checked={tasksConfirmed}
                 onChange={e => setTasksConfirmed(e.target.checked)}
               />
-              <span>I confirm that I completed the X tasks above.</span>
+              <span>
+                I confirm that I completed the X tasks above.
+              </span>
             </label>
 
             <button
@@ -447,7 +531,8 @@ function App() {
             <p className="eyebrow">THE MINT JOURNEY</p>
 
             <h2>
-              Three stages.<br />
+              Three stages.
+              <br />
               <em>One collection.</em>
             </h2>
 
@@ -469,15 +554,18 @@ function App() {
                 <span>PHASE 01</span>
                 <b>200 SUPPLY</b>
               </div>
+
               <h3>OG WHITELIST</h3>
               <p>
                 OG members mint first. This phase must sell out before
                 Regular WL mint begins.
               </p>
+
               <div className="phase-price">
                 <span>PLANNED MINT PRICE</span>
                 <strong>0.0018 BNB</strong>
               </div>
+
               <small>NOT OPEN · FIRST PHASE</small>
             </div>
 
@@ -488,15 +576,18 @@ function App() {
                 <span>PHASE 02</span>
                 <b>800 SUPPLY</b>
               </div>
+
               <h3>REGULAR WHITELIST</h3>
               <p>
                 Regular WL members mint after all 200 OG allocations
                 are completed.
               </p>
+
               <div className="phase-price">
                 <span>PLANNED MINT PRICE</span>
                 <strong>0.0035 BNB</strong>
               </div>
+
               <small>LOCKED · OPENS AFTER OG</small>
             </div>
 
@@ -507,15 +598,18 @@ function App() {
                 <span>PHASE 03</span>
                 <b>REMAINING SUPPLY</b>
               </div>
+
               <h3>PUBLIC MINT</h3>
               <p>
                 After the whitelist phases are complete, remaining NFTs
                 become available to everyone.
               </p>
+
               <div className="phase-price">
                 <span>PLANNED MINT PRICE</span>
                 <strong>0.005 BNB</strong>
               </div>
+
               <small>LOCKED · OPENS AFTER WL</small>
             </div>
 
@@ -529,7 +623,9 @@ function App() {
 
         <section className="faq" id="faq">
           <p className="eyebrow">NEED TO KNOW</p>
-          <h2>Frequently asked <em>questions.</em></h2>
+          <h2>
+            Frequently asked <em>questions.</em>
+          </h2>
 
           <details>
             <summary>Is joining the whitelist free?</summary>
@@ -561,8 +657,8 @@ function App() {
             <summary>What are the planned mint prices?</summary>
             <p>
               Planned prices are 0.0018 BNB for OG WL, 0.0035 BNB for
-              Regular WL and 0.005 BNB for Public Mint. Dates and activation
-              will be announced later.
+              Regular WL and 0.005 BNB for Public Mint. Dates and
+              activation will be announced later.
             </p>
           </details>
 
