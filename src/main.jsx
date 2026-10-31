@@ -1,15 +1,15 @@
+
 import React, { useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import {
   WagmiProvider,
   useAccount,
-  useSignMessage,
-  createConfig,
-  http
+  useReadContract,
+  useWriteContract
 } from 'wagmi';
 import { bsc } from 'wagmi/chains';
 import {
-  connectorsForWallets,
+  getDefaultConfig as getRainbowConfig,
   RainbowKitProvider,
   ConnectButton
 } from '@rainbow-me/rainbowkit';
@@ -31,19 +31,24 @@ import {
   injectedWallet
 } from '@rainbow-me/rainbowkit/wallets';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { parseEther } from 'viem';
 import '@rainbow-me/rainbowkit/styles.css';
 import './style.css';
 
 const API_BASE = 'https://orqeli-api.mizahhesabimm.workers.dev';
-const X_PROFILE_URL = '';
-const X_CAMPAIGN_URL = '';
+const X_PROFILE_URL = 'https://x.com/OrqeliNFT';
+const X_CAMPAIGN_URL = 'https://x.com/OrqeliNFT/status/2116580426743509378';
 
 const projectId =
   import.meta.env.VITE_WALLETCONNECT_PROJECT_ID ||
   'YOUR_WALLETCONNECT_PROJECT_ID';
 
-const connectors = connectorsForWallets(
-  [
+const config = getRainbowConfig({
+  appName: 'ORQELI',
+  projectId,
+  chains: [bsc],
+  ssr: false,
+  wallets: [
     {
       groupName: 'Popular wallets',
       wallets: [
@@ -54,37 +59,104 @@ const connectors = connectorsForWallets(
         okxWallet,
         bitgetWallet,
         safepalWallet,
-        coinbaseWallet,
+        coinbaseWallet
+      ]
+    },
+    {
+      groupName: 'More wallets',
+      wallets: [
         tokenPocketWallet,
         oneInchWallet,
         ledgerWallet,
         phantomWallet,
-        zerionWallet
-      ]
-    },
-    {
-      groupName: 'Other connection options',
-      wallets: [
+        zerionWallet,
         walletConnectWallet,
         injectedWallet
       ]
     }
-  ],
-  {
-    appName: 'ORQELI',
-    projectId
-  }
-);
-
-const config = createConfig({
-  chains: [bsc],
-  connectors,
-  transports: {
-    [bsc.id]: http()
-  }
+  ]
 });
 
 const queryClient = new QueryClient();
+
+const NFT_CONTRACT = '0xc141831d7caa2c7cc8a3ddf4050ed866bde97655';
+
+const NFT_ABI = [
+  {
+    type: 'function',
+    name: 'currentPhase',
+    stateMutability: 'view',
+    inputs: [],
+    outputs: [{ name: '', type: 'uint8' }]
+  },
+  {
+    type: 'function',
+    name: 'totalMinted',
+    stateMutability: 'view',
+    inputs: [],
+    outputs: [{ name: '', type: 'uint256' }]
+  },
+  {
+    type: 'function',
+    name: 'owner',
+    stateMutability: 'view',
+    inputs: [],
+    outputs: [{ name: '', type: 'address' }]
+  },
+  {
+    type: 'function',
+    name: 'mintOG',
+    stateMutability: 'payable',
+    inputs: [
+      { name: 'proof', type: 'bytes32[]' }
+    ],
+    outputs: []
+  },
+  {
+    type: 'function',
+    name: 'mintRegular',
+    stateMutability: 'payable',
+    inputs: [
+      { name: 'proof', type: 'bytes32[]' }
+    ],
+    outputs: []
+  },
+  {
+    type: 'function',
+    name: 'mintPublic',
+    stateMutability: 'payable',
+    inputs: [],
+    outputs: []
+  },
+  {
+    type: 'function',
+    name: 'openOG',
+    stateMutability: 'nonpayable',
+    inputs: [],
+    outputs: []
+  },
+  {
+    type: 'function',
+    name: 'openRegular',
+    stateMutability: 'nonpayable',
+    inputs: [],
+    outputs: []
+  },
+  {
+    type: 'function',
+    name: 'openPublic',
+    stateMutability: 'nonpayable',
+    inputs: [],
+    outputs: []
+  },
+  {
+    type: 'function',
+    name: 'closeMint',
+    stateMutability: 'nonpayable',
+    inputs: [],
+    outputs: []
+  }
+];
 
 const tiers = [
   ['Common', '1,100', '55%', 'common', '#b9c2ce', 'Quiet beginnings. A familiar soul from another world.'],
@@ -92,6 +164,33 @@ const tiers = [
   ['Rare', '250', '12.5%', 'rare', '#53c9ff', 'A celestial presence beneath a veil of stars.'],
   ['Epic', '120', '6%', 'epic', '#b98aff', 'Forged in shadow. Charged with violet energy.'],
   ['Legendary', '30', '1.5%', 'legendary', '#eac16e', 'The rarest light in the ORQELI universe.']
+];
+
+const mintPhases = [
+  {
+    id: 1,
+    title: 'OG WHITELIST',
+    supply: '200 SUPPLY',
+    price: '0.0018',
+    functionName: 'mintOG',
+    description: 'OG members mint first. This phase must finish before Regular WL mint begins.'
+  },
+  {
+    id: 2,
+    title: 'REGULAR WHITELIST',
+    supply: '800 SUPPLY',
+    price: '0.0035',
+    functionName: 'mintRegular',
+    description: 'Regular WL members mint after the OG allocation is completed.'
+  },
+  {
+    id: 3,
+    title: 'PUBLIC MINT',
+    supply: '1,000 SUPPLY',
+    price: '0.005',
+    functionName: 'mintPublic',
+    description: 'After the whitelist phases, remaining NFTs become available to everyone.'
+  }
 ];
 
 async function readResponse(response) {
@@ -113,22 +212,63 @@ async function readResponse(response) {
 
 function App() {
   const account = useAccount();
-  const { signMessageAsync } = useSignMessage();
+  const { writeContractAsync } = useWriteContract();
 
   const [wallet, setWallet] = useState('');
   const [xUsername, setXUsername] = useState('');
   const [tasksConfirmed, setTasksConfirmed] = useState(false);
+
   const [busy, setBusy] = useState(false);
+  const [mintBusy, setMintBusy] = useState(false);
+  const [adminBusy, setAdminBusy] = useState(false);
   const [status, setStatus] = useState('');
+
+  const isAdminRoute =
+    new URLSearchParams(window.location.search).get('admin') === '1';
+
+  const phaseRead = useReadContract({
+    address: NFT_CONTRACT,
+    abi: NFT_ABI,
+    functionName: 'currentPhase',
+    chainId: 56,
+    query: { refetchInterval: 10000 }
+  });
+
+  const mintedRead = useReadContract({
+    address: NFT_CONTRACT,
+    abi: NFT_ABI,
+    functionName: 'totalMinted',
+    chainId: 56,
+    query: { refetchInterval: 10000 }
+  });
+
+  const ownerRead = useReadContract({
+    address: NFT_CONTRACT,
+    abi: NFT_ABI,
+    functionName: 'owner',
+    chainId: 56,
+    query: { refetchInterval: 30000 }
+  });
+
+  const chainPhase =
+    phaseRead.data === undefined ? null : Number(phaseRead.data);
+
+  const totalMinted =
+    mintedRead.data === undefined ? null : Number(mintedRead.data);
+
+  const ownerAddress = ownerRead.data;
+
+  const isOwner =
+    Boolean(account.address && ownerAddress) &&
+    account.address.toLowerCase() === ownerAddress.toLowerCase();
+
+  const isCorrectNetwork = account.chainId === 56;
+
   const [wlStatus, setWlStatus] = useState({
     verified: 0,
     capacity: 1000,
     open: true
   });
-
-  useEffect(() => {
-    setWallet(account.address || '');
-  }, [account.address]);
 
   useEffect(() => {
     let active = true;
@@ -146,99 +286,145 @@ function App() {
   }, []);
 
   async function applyWhitelist() {
-    if (!account.address) {
-      return setStatus('Önce cüzdanını bağla.');
-    }
+    const cleanWallet = wallet.trim();
 
-    if (account.chainId !== 56) {
-      return setStatus('Lütfen Rabby üzerinden BNB Smart Chain ağına geç.');
+    if (!/^0x[a-fA-F0-9]{40}$/.test(cleanWallet)) {
+      return setStatus('Please enter a valid wallet address.');
     }
 
     if (!xUsername.trim()) {
-      return setStatus('X kullanıcı adını gir.');
+      return setStatus('Enter your X username.');
     }
 
     if (!tasksConfirmed) {
-      return setStatus('Önce X görevlerini tamamladığını onayla.');
+      return setStatus('Please confirm that you completed the X tasks.');
     }
 
     if (!wlStatus.open) {
-      return setStatus('Whitelist başvuruları doldu.');
+      return setStatus('Whitelist applications are closed.');
     }
 
     setBusy(true);
     setStatus('');
 
     try {
-      const challengeResponse = await fetch(
-        `${API_BASE}/api/whitelist/challenge`,
-        {
-          method: 'POST',
-          headers: {
-            'content-type': 'application/json'
-          },
-          body: JSON.stringify({
-            wallet: account.address
-          })
-        }
-      );
-
-      const challenge = await readResponse(challengeResponse);
-
-      if (!challenge.message) {
-        throw new Error('Worker imza mesajı döndürmedi.');
-      }
-
-      const signature = await signMessageAsync({
-        message: challenge.message
+      const response = await fetch(`${API_BASE}/api/whitelist/apply`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          wallet: cleanWallet,
+          xUsername: xUsername.trim().replace(/^@/, ''),
+          tasksConfirmed: true
+        })
       });
 
-      const applyResponse = await fetch(
-        `${API_BASE}/api/whitelist/apply`,
-        {
-          method: 'POST',
-          headers: {
-            'content-type': 'application/json'
-          },
-          body: JSON.stringify({
-            wallet: account.address,
-            xUsername: xUsername.trim().replace(/^@/, ''),
-            tasksConfirmed: true,
-            signature
-          })
-        }
-      );
-
-      const result = await readResponse(applyResponse);
+      const result = await readResponse(response);
 
       setStatus(
-        `Başvurun alındı! Sıra: #${result.rank} · ${result.tier} WL`
+        `Application received! Rank: #${result.rank} · ${result.tier} WL`
       );
 
       const statusResponse = await fetch(`${API_BASE}/api/status`);
       const updated = await readResponse(statusResponse);
-
       setWlStatus(updated);
     } catch (error) {
       setStatus(
         error?.message ||
-        'Başvuru sırasında beklenmeyen bir hata oluştu.'
+        'An unexpected error occurred while submitting your application.'
       );
     } finally {
       setBusy(false);
     }
   }
 
-  const openX = (url) => {
-    if (!url) {
-      setStatus(
-        'X bağlantısı henüz eklenmedi. Kampanya başladığında burada olacak.'
-      );
-      return;
+  async function mint(phase) {
+    if (!account.address) {
+      return setStatus('Connect your wallet first.');
     }
 
-    window.open(url, '_blank', 'noopener,noreferrer');
-  };
+    if (!isCorrectNetwork) {
+      return setStatus('Please switch to BNB Smart Chain (Chain ID 56).');
+    }
+
+    if (chainPhase !== phase.id) {
+      return setStatus('This mint phase is not currently open.');
+    }
+
+    setMintBusy(true);
+    setStatus('');
+
+    try {
+      let args = [];
+
+      if (phase.id === 1 || phase.id === 2) {
+        const proofUrl =
+          `${API_BASE}/api/whitelist/proof?wallet=${encodeURIComponent(account.address)}`;
+
+        const proofResponse = await fetch(proofUrl);
+        const proofResult = await readResponse(proofResponse);
+
+        if (!Array.isArray(proofResult.proof)) {
+          throw new Error('Whitelist proof could not be found for this wallet.');
+        }
+
+        args = [proofResult.proof];
+      }
+
+      const hash = await writeContractAsync({
+        address: NFT_CONTRACT,
+        abi: NFT_ABI,
+        functionName: phase.functionName,
+        args,
+        value: parseEther(phase.price),
+        chainId: 56
+      });
+
+      setStatus(`Mint transaction submitted: ${hash}`);
+
+      await phaseRead.refetch();
+      await mintedRead.refetch();
+    } catch (error) {
+      setStatus(error?.shortMessage || error?.message || 'Mint failed.');
+    } finally {
+      setMintBusy(false);
+    }
+  }
+
+  async function adminAction(functionName, label) {
+    if (!account.address) {
+      return setStatus('Connect the owner wallet first.');
+    }
+
+    if (!isCorrectNetwork) {
+      return setStatus('Switch to BNB Smart Chain first.');
+    }
+
+    if (!isOwner) {
+      return setStatus('This wallet is not the contract owner.');
+    }
+
+    setAdminBusy(true);
+    setStatus('');
+
+    try {
+      const hash = await writeContractAsync({
+        address: NFT_CONTRACT,
+        abi: NFT_ABI,
+        functionName,
+        args: [],
+        chainId: 56
+      });
+
+      setStatus(`${label} transaction submitted: ${hash}`);
+
+      await phaseRead.refetch();
+      await mintedRead.refetch();
+    } catch (error) {
+      setStatus(error?.shortMessage || error?.message || 'Admin action failed.');
+    } finally {
+      setAdminBusy(false);
+    }
+  }
 
   return (
     <>
@@ -254,10 +440,6 @@ function App() {
           <a href="#mint">MINT</a>
           <a href="#faq">FAQ</a>
         </nav>
-
-        <div className="connect">
-          <ConnectButton chainStatus="icon" showBalance={false} />
-        </div>
       </header>
 
       <main id="top">
@@ -268,6 +450,7 @@ function App() {
             <p className="eyebrow">FIVE SOULS. ONE LEGEND.</p>
             <h1>ORQELI</h1>
             <p className="sub">NFT COLLECTION</p>
+
             <p className="intro">
               Five unique souls. Five different paths.
               <br />
@@ -283,7 +466,7 @@ function App() {
             {['common', 'epic', 'legendary', 'rare', 'uncommon'].map(n => (
               <img
                 key={n}
-                src={`/artwork/${n}.webp`}
+                src={`/artwork/${n}.png`}
                 alt={`${n} ORQELI character`}
               />
             ))}
@@ -359,7 +542,7 @@ function App() {
               >
                 <div className="tierimage">
                   <img
-                    src={`/artwork/${file}.webp`}
+                    src={`/artwork/${file}.png`}
                     alt={`${name} ORQELI NFT`}
                   />
                 </div>
@@ -369,6 +552,7 @@ function App() {
                     <span>{name.toUpperCase()}</span>
                     <b>{pct}</b>
                   </div>
+
                   <p>{desc}</p>
                   <small>{count} NFTs</small>
                 </div>
@@ -388,17 +572,17 @@ function App() {
             </h2>
 
             <p>
-              Joining the whitelist is completely free. Connect your wallet,
-              complete the community tasks and submit one application. A
-              whitelist spot gives you access to a future paid mint phase —
-              it does not mean a free NFT.
+              Joining the whitelist is completely free. Enter your wallet
+              address manually, complete the community tasks and submit
+              one application. A whitelist spot gives you access to a future
+              paid mint phase — it does not mean a free NFT.
             </p>
 
             <div className="rules">
               <div>
                 <b>01</b>
                 <span>
-                  <strong>Connect your wallet</strong>
+                  <strong>Enter your wallet address</strong>
                   <small>Use the wallet you intend to mint with.</small>
                 </span>
               </div>
@@ -444,11 +628,6 @@ function App() {
               <span> / {wlStatus.capacity} WHITELIST PLACES FILLED</span>
             </div>
 
-            <div className="walletline">
-              <span>WALLET STATUS</span>
-              <ConnectButton chainStatus="none" showBalance={false} />
-            </div>
-
             <label>X USERNAME</label>
             <input
               placeholder="@yourusername"
@@ -458,38 +637,34 @@ function App() {
 
             <label>WALLET ADDRESS</label>
             <input
-              placeholder="Connect wallet to fill this field"
+              placeholder="0x..."
               value={wallet}
-              readOnly
+              onChange={e => setWallet(e.target.value)}
+              spellCheck="false"
+              autoComplete="off"
             />
 
             <div className="tasklinks">
               <a
-                href="#"
-                onClick={e => {
-                  e.preventDefault();
-                  openX(X_PROFILE_URL);
-                }}
+                href={X_PROFILE_URL}
+                target="_blank"
+                rel="noopener noreferrer"
               >
                 ↗ Follow on X
               </a>
 
               <a
-                href="#"
-                onClick={e => {
-                  e.preventDefault();
-                  openX(X_CAMPAIGN_URL);
-                }}
+                href={X_CAMPAIGN_URL}
+                target="_blank"
+                rel="noopener noreferrer"
               >
                 ♡ Like campaign post
               </a>
 
               <a
-                href="#"
-                onClick={e => {
-                  e.preventDefault();
-                  openX(X_CAMPAIGN_URL);
-                }}
+                href={X_CAMPAIGN_URL}
+                target="_blank"
+                rel="noopener noreferrer"
               >
                 ⤴ Repost campaign post
               </a>
@@ -501,9 +676,7 @@ function App() {
                 checked={tasksConfirmed}
                 onChange={e => setTasksConfirmed(e.target.checked)}
               />
-              <span>
-                I confirm that I completed the X tasks above.
-              </span>
+              <span>I confirm that I completed the X tasks above.</span>
             </label>
 
             <button
@@ -537,89 +710,216 @@ function App() {
             </h2>
 
             <p>
-              Whitelist applications are free. NFT minting will open later
-              in three sequential phases. Each phase begins only after the
-              previous phase is complete.
+              Whitelist entry is free. Paid minting follows three sequential
+              phases: OG, Regular and Public. Each phase is controlled by
+              the smart contract.
             </p>
 
             <p className="mint-note">
-              No mint is live right now. You do not need to pay anything
-              to join the whitelist.
+              Connect your wallet only after the relevant mint phase opens.
+              Minting is available only while that phase is live on-chain.
             </p>
           </div>
 
           <div className="mintbox mint-roadmap">
-            <div className="phase-card phase-og">
-              <div className="phase-heading">
-                <span>PHASE 01</span>
-                <b>200 SUPPLY</b>
-              </div>
+            {mintPhases.map((phase, index) => {
+              const live = chainPhase === phase.id;
+              const completed =
+                chainPhase !== null && chainPhase > phase.id;
 
-              <h3>OG WHITELIST</h3>
-              <p>
-                OG members mint first. This phase must sell out before
-                Regular WL mint begins.
-              </p>
+              const enabled =
+                live &&
+                Boolean(account.address) &&
+                isCorrectNetwork &&
+                !mintBusy;
 
-              <div className="phase-price">
-                <span>PLANNED MINT PRICE</span>
-                <strong>0.0018 BNB</strong>
-              </div>
+              return (
+                <React.Fragment key={phase.id}>
+                  <div className={`phase-card ${phase.id === 1 ? 'phase-og' : ''}`}>
+                    <div className="phase-heading">
+                      <span>PHASE 0{phase.id}</span>
+                      <b>{phase.supply}</b>
+                    </div>
 
-              <small>NOT OPEN · FIRST PHASE</small>
-            </div>
+                    <h3>{phase.title}</h3>
+                    <p>{phase.description}</p>
 
-            <div className="phase-connector">↓</div>
+                    <div className="phase-price">
+                      <span>MINT PRICE</span>
+                      <strong>{phase.price} BNB</strong>
+                    </div>
 
-            <div className="phase-card">
-              <div className="phase-heading">
-                <span>PHASE 02</span>
-                <b>800 SUPPLY</b>
-              </div>
+                    <small>
+                      {completed
+                        ? 'COMPLETED'
+                        : live
+                          ? 'LIVE ON-CHAIN'
+                          : chainPhase === null
+                            ? (phaseRead.isError
+                              ? 'STATUS UNAVAILABLE'
+                              : 'READING CONTRACT…')
+                            : chainPhase === 0
+                              ? 'NOT OPEN'
+                              : 'LOCKED · PREVIOUS PHASE'}
+                    </small>
 
-              <h3>REGULAR WHITELIST</h3>
-              <p>
-                Regular WL members mint after all 200 OG allocations
-                are completed.
-              </p>
+                    {live ? (
+                      <>
+                        <div className="phase-wallet">
+                          <ConnectButton
+                            chainStatus="none"
+                            showBalance={false}
+                          />
+                        </div>
 
-              <div className="phase-price">
-                <span>PLANNED MINT PRICE</span>
-                <strong>0.0035 BNB</strong>
-              </div>
+                        {account.address && !isCorrectNetwork && (
+                          <p className="fine">
+                            Switch to BNB Smart Chain to mint.
+                          </p>
+                        )}
 
-              <small>LOCKED · OPENS AFTER OG</small>
-            </div>
+                        <button
+                          className="goldbtn wide"
+                          disabled={!enabled}
+                          onClick={() => mint(phase)}
+                        >
+                          {mintBusy
+                            ? 'PROCESSING…'
+                            : !account.address
+                              ? 'CONNECT WALLET TO MINT'
+                              : !isCorrectNetwork
+                                ? 'WRONG NETWORK'
+                                : 'MINT NOW'}
+                        </button>
+                      </>
+                    ) : (
+                      <button className="goldbtn wide" disabled>
+                        {completed
+                          ? 'PHASE COMPLETED'
+                          : 'MINT NOT OPEN'}
+                      </button>
+                    )}
+                  </div>
 
-            <div className="phase-connector">↓</div>
-
-            <div className="phase-card">
-              <div className="phase-heading">
-                <span>PHASE 03</span>
-                <b>REMAINING SUPPLY</b>
-              </div>
-
-              <h3>PUBLIC MINT</h3>
-              <p>
-                After the whitelist phases are complete, remaining NFTs
-                become available to everyone.
-              </p>
-
-              <div className="phase-price">
-                <span>PLANNED MINT PRICE</span>
-                <strong>0.005 BNB</strong>
-              </div>
-
-              <small>LOCKED · OPENS AFTER WL</small>
-            </div>
+                  {index !== mintPhases.length - 1 && (
+                    <div className="phase-connector">↓</div>
+                  )}
+                </React.Fragment>
+              );
+            })}
 
             <p className="fine">
-              All phases are planned for BNB Smart Chain. Prices and
-              activation dates will be confirmed in the official launch
-              announcement. Minting is currently unavailable.
+              BNB Smart Chain · Contract:{' '}
+              <a
+                href={`https://bscscan.com/address/${NFT_CONTRACT}`}
+                target="_blank"
+                rel="noreferrer"
+              >
+                View on BscScan ↗
+              </a>
+              {totalMinted !== null
+                ? ` · ${totalMinted.toLocaleString()} / 2,000 minted`
+                : ' · Supply data loading'}.
+              Phase status refreshes automatically.
             </p>
           </div>
         </section>
+
+        {isAdminRoute && (
+          <section className="admin-section">
+            {isOwner ? (
+              <div className="panel admin-panel">
+                <div className="paneltop">
+                  <span>ORQELI ADMIN PANEL</span>
+                  <i>✦ OWNER VERIFIED</i>
+                </div>
+
+                <h3>Contract controls</h3>
+
+                <p className="fine">
+                  Connected wallet matches the smart contract owner.
+                  Use these controls to change the live mint phase.
+                </p>
+
+                <div className="admin-wallet">
+                  <span>OWNER WALLET</span>
+                  <code>{account.address}</code>
+                </div>
+
+                <div className="admin-current">
+                  CURRENT PHASE:{' '}
+                  {chainPhase === null
+                    ? 'LOADING'
+                    : ['CLOSED', 'OG', 'REGULAR', 'PUBLIC'][chainPhase] || 'UNKNOWN'}
+                </div>
+
+                <div className="admin-actions">
+                  <button
+                    className="goldbtn wide"
+                    disabled={adminBusy}
+                    onClick={() => adminAction('openOG', 'Open OG')}
+                  >
+                    OPEN OG MINT
+                  </button>
+
+                  <button
+                    className="goldbtn wide"
+                    disabled={adminBusy}
+                    onClick={() => adminAction('openRegular', 'Open Regular')}
+                  >
+                    OPEN REGULAR MINT
+                  </button>
+
+                  <button
+                    className="goldbtn wide"
+                    disabled={adminBusy}
+                    onClick={() => adminAction('openPublic', 'Open Public')}
+                  >
+                    OPEN PUBLIC MINT
+                  </button>
+
+                  <button
+                    className="goldbtn wide admin-close"
+                    disabled={adminBusy}
+                    onClick={() => adminAction('closeMint', 'Close mint')}
+                  >
+                    CLOSE MINT
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="panel admin-panel">
+                <div className="paneltop">
+                  <span>ORQELI ADMIN PANEL</span>
+                  <i>✦ OWNER ACCESS</i>
+                </div>
+
+                <h3>Owner wallet required</h3>
+
+                <p className="fine">
+                  Connect the contract owner wallet to access the admin controls.
+                </p>
+
+                <ConnectButton
+                  chainStatus="none"
+                  showBalance={false}
+                />
+
+                {account.address && ownerAddress && !isOwner && (
+                  <p className="fine">
+                    This connected wallet is not the contract owner.
+                  </p>
+                )}
+
+                {ownerRead.isError && (
+                  <p className="fine">
+                    Could not read the contract owner. Check the contract connection.
+                  </p>
+                )}
+              </div>
+            )}
+          </section>
+        )}
 
         <section className="faq" id="faq">
           <p className="eyebrow">NEED TO KNOW</p>
@@ -656,9 +956,8 @@ function App() {
           <details>
             <summary>What are the planned mint prices?</summary>
             <p>
-              Planned prices are 0.0018 BNB for OG WL, 0.0035 BNB for
-              Regular WL and 0.005 BNB for Public Mint. Dates and
-              activation will be announced later.
+              Prices are 0.0018 BNB for OG WL, 0.0035 BNB for
+              Regular WL and 0.005 BNB for Public Mint.
             </p>
           </details>
 
